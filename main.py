@@ -23,8 +23,15 @@ def index():
 
 # 4. Helper function for Signed URLs
 def generate_signed_url(blob_name):
-    """Generates a temporary, secure link for a private GCS file."""
+    """Generates a temporary, secure link for a private GCS file using IAM signing."""
     try:
+        # Get the email from the Cloud Run Environment Variable
+        service_account_email = os.environ.get("SERVICE_ACCOUNT_EMAIL")
+        
+        if not service_account_email:
+            print("Error: SERVICE_ACCOUNT_EMAIL environment variable is not set.")
+            return None
+
         storage_client = storage.Client()
         bucket = storage_client.bucket(BUCKET_NAME)
         blob = bucket.blob(blob_name)
@@ -33,6 +40,8 @@ def generate_signed_url(blob_name):
             version="v4",
             expiration=datetime.timedelta(minutes=EXPIRATION_MINS),
             method="GET",
+            # This line tells the library to use the IAM API instead of a local key file
+            service_account_email=service_account_email
         )
         return url
     except Exception as e:
