@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Event Gallery</title>
+    <style>
+      /* Modern Minimalist Design */
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+          Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #ffffff;
+        color: #333;
+      }
+
+      header {
+        padding: 30px 20px;
+        text-align: center;
+        background: #fafafa;
+        border-bottom: 1px solid #eee;
+        position: sticky;
+        top: 0;
+        z-index: 100;
+      }
+
+      h1 {
+        margin: 0;
+        font-weight: 300;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        font-size: 1.2rem;
+      }
+
+      /* The Photo Grid */
+      .gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+        gap: 15px;
+        padding: 15px;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      .photo-card {
+        background-color: #f9f9f9;
+        border-radius: 4px;
+        overflow: hidden;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        transition: transform 0.3s ease;
+      }
+
+      .photo-card:hover {
+        transform: translateY(-5px);
+      }
+
+      .photo-card img {
+        width: 100%;
+        height: auto;
+        display: block;
+        cursor: pointer;
+      }
+
+      /* Loading & Error Messages */
+      #status-container {
+        text-align: center;
+        padding: 100px 20px;
+      }
+
+      .loader {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #333;
+        border-radius: 50%;
+        width: 30px;
+        height: 30px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 20px;
+      }
+
+      @keyframes spin {
+        0% {
+          transform: rotate(0deg);
+        }
+        100% {
+          transform: rotate(360deg);
+        }
+      }
+
+      /* Mobile Optimization */
+      @media (max-width: 600px) {
+        .gallery {
+          grid-template-columns: repeat(2, 1fr); /* 2 columns on phones */
+          gap: 8px;
+          padding: 8px;
+        }
+        h1 {
+          font-size: 1rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1 id="event-title">Event Gallery</h1>
+    </header>
+
+    <div id="status-container">
+      <div id="loader" class="loader"></div>
+      <p id="status-text">Opening your gallery...</p>
+    </div>
+
+    <div class="gallery" id="photo-grid" style="display: none"></div>
+
+    <script>
+      // 1. Extract the event ID from the URL (e.g. ?event=wedding2026)
+      const urlParams = new URLSearchParams(window.location.search);
+      const eventId = urlParams.get("event");
+
+      // 2. Define the endpoint (Relative to your Cloud Run URL)
+      const API_URL = `/gallery?event=${eventId}`;
+
+      async function initGallery() {
+        const statusText = document.getElementById("status-text");
+        const loader = document.getElementById("loader");
+        const grid = document.getElementById("photo-grid");
+        const title = document.getElementById("event-title");
+
+        if (!eventId) {
+          loader.style.display = "none";
+          statusText.innerHTML =
+            "<strong>Access Denied:</strong> No Event ID found. Please scan the QR code again.";
+          return;
+        }
+
+        try {
+          const response = await fetch(API_URL);
+          const data = await response.json();
+
+          if (response.ok && data.photos.length > 0) {
+            // Hide loading UI
+            document.getElementById("status-container").style.display = "none";
+            grid.style.display = "grid";
+
+            // Update Title
+            title.innerText = eventId.replace(/-/g, " ");
+
+            // 3. Inject photos into the grid
+            data.photos.forEach((url) => {
+              const card = document.createElement("div");
+              card.className = "photo-card";
+
+              const img = document.createElement("img");
+              img.src = url;
+              img.loading = "lazy"; // Only loads as user scrolls
+
+              // Click to view full image
+              img.onclick = () => window.open(url, "_blank");
+
+              card.appendChild(img);
+              grid.appendChild(card);
+            });
+          } else {
+            loader.style.display = "none";
+            statusText.innerText =
+              data.error || "This gallery is currently empty.";
+          }
+        } catch (err) {
+          loader.style.display = "none";
+          statusText.innerText =
+            "Error connecting to server. Please try again.";
+          console.error("Gallery Error:", err);
+        }
+      }
+
+      // Run the script
+      initGallery();
+    </script>
+  </body>
+</html>
