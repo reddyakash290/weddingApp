@@ -22,40 +22,34 @@ def index():
     """Serves the frontend HTML file."""
     return send_from_directory('.', 'index.html')
 
-# 4. Helper function for Signed URLs
-def generate_signed_url(blob_name):
-    """Generates a temporary, secure link for a private GCS file using IAM signing."""
-    try:
-        # Get the email from the Cloud Run Environment Variable
-        service_account_email = os.environ.get("SERVICE_ACCOUNT_EMAIL")
-        print(f"DEBUG: Attempting sign for {service_account_email} on Blob {blob_name}")
 
-        if not service_account_email:
-            print("Error: SERVICE_ACCOUNT_EMAIL environment variable is not set.")
+# 4. Helper function for Signed URLs
+KEY_PATH = "/secrets/key.json"
+def generate_signed_url(blob_name):
+    """Generates a temporary link by reading the private key from Secret Manager."""
+    try:
+        # Check if the secret was actually mounted correctly
+        if not os.path.exists(KEY_PATH):
+            print(f"Error: Secret file not found at {KEY_PATH}. Check Cloud Run Volume Mounts.")
             return None
 
-        #storage_client = storage.Client()
-        # --- THE FIX STARTS HERE ---
-        # 1. Grab the "Token" credentials Cloud Run provides automatically
-        credentials, project = auth.default()
-        print(f"DEBUG: Credential type: {type(credentials)}")
-        
-        # 2. Pass those credentials explicitly into the client
-        storage_client = storage.Client(credentials=credentials)
-        # --- THE FIX ENDS HERE ---
+        # 2. Initialize the client using the local JSON file
+        # This provides the 'Private Key' the library was looking for
+        storage_client = storage.Client.from_service_account_json(KEY_PATH)
         
         bucket = storage_client.bucket(BUCKET_NAME)
         blob = bucket.blob(blob_name)
 
+        # 3. Generate the URL (No need for service_account_email param here, 
+        # as the client already knows who it is from the JSON file)
         url = blob.generate_signed_url(
             version="v4",
             expiration=datetime.timedelta(minutes=EXPIRATION_MINS),
-            method="GET",
-            service_account_email=service_account_email
+            method="GET"
         )
         return url
     except Exception as e:
-        print(f"Error generating signed URL: {e}")
+        print(f"Error generating signed URL with Secret: {e}")
         return None
 
 # 5. API Route to fetch photos for a specific event
