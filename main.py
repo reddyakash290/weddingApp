@@ -28,7 +28,8 @@ def generate_signed_url(blob_name):
     try:
         # Get the email from the Cloud Run Environment Variable
         service_account_email = os.environ.get("SERVICE_ACCOUNT_EMAIL")
-        
+        print(f"DEBUG: Attempting sign for {service_account_email} on Blob {blob_name}")
+
         if not service_account_email:
             print("Error: SERVICE_ACCOUNT_EMAIL environment variable is not set.")
             return None
@@ -37,6 +38,7 @@ def generate_signed_url(blob_name):
         # --- THE FIX STARTS HERE ---
         # 1. Grab the "Token" credentials Cloud Run provides automatically
         credentials, project = auth.default()
+        print(f"DEBUG: Credential type: {type(credentials)}")
         
         # 2. Pass those credentials explicitly into the client
         storage_client = storage.Client(credentials=credentials)
