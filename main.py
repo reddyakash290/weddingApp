@@ -4,6 +4,7 @@ from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 from google.cloud import storage
 from dotenv import load_dotenv
+from google import auth
 
 # 1. Load environment variables
 load_dotenv()
@@ -32,7 +33,15 @@ def generate_signed_url(blob_name):
             print("Error: SERVICE_ACCOUNT_EMAIL environment variable is not set.")
             return None
 
-        storage_client = storage.Client()
+        #storage_client = storage.Client()
+        # --- THE FIX STARTS HERE ---
+        # 1. Grab the "Token" credentials Cloud Run provides automatically
+        credentials, project = auth.default()
+        
+        # 2. Pass those credentials explicitly into the client
+        storage_client = storage.Client(credentials=credentials)
+        # --- THE FIX ENDS HERE ---
+        
         bucket = storage_client.bucket(BUCKET_NAME)
         blob = bucket.blob(blob_name)
 
@@ -40,7 +49,6 @@ def generate_signed_url(blob_name):
             version="v4",
             expiration=datetime.timedelta(minutes=EXPIRATION_MINS),
             method="GET",
-            # This line tells the library to use the IAM API instead of a local key file
             service_account_email=service_account_email
         )
         return url
