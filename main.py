@@ -24,13 +24,15 @@ def index():
 
 
 # 4. Helper function for Signed URLs
-KEY_PATH = "/secrets/key.json"
+KEY_PATH = "/secrets/storage-service-key"
 def generate_signed_url(blob_name):
     """Generates a temporary link by reading the private key from Secret Manager."""
     try:
         # Check if the secret was actually mounted correctly
         if not os.path.exists(KEY_PATH):
-            print(f"Error: Secret file not found at {KEY_PATH}. Check Cloud Run Volume Mounts.")
+            print(f"ERROR: Key file not found at {KEY_PATH}")
+            if os.path.exists("/secrets"):
+                print(f"DEBUG: /secrets actually contains: {os.listdir('/secrets')}")
             return None
 
         # 2. Initialize the client using the local JSON file
