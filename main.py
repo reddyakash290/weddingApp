@@ -85,6 +85,41 @@ def get_gallery():
     except Exception as e:
         return jsonify({"error": f"Server Error: {str(e)}"}), 500
 
+
+
+# 6. API Route to add photos for a specific event
+@app.route('/get-upload-url')
+def get_upload_url():
+    """Generates a signed URL that allows a browser to PUT (upload) a file."""
+    filename = request.args.get('filename')
+    event_id = request.args.get('event')
+    file_type = request.args.get('type', 'image/jpeg') # Default to jpeg
+
+    if not filename or not event_id:
+        return jsonify({"error": "Missing filename or event ID"}), 400
+
+    try:
+        storage_client = storage.Client.from_service_account_json(KEY_PATH)
+        bucket = storage_client.bucket(BUCKET_NAME)
+        
+        # We save it into the event folder: wedding_1/my_photo.jpg
+        blob_name = f"{event_id}/{filename}"
+        blob = bucket.blob(blob_name)
+
+        # Generate a signed URL for a 'PUT' request
+        url = blob.generate_signed_url(
+            version="v4",
+            expiration=datetime.timedelta(minutes=15),
+            method="PUT",
+            content_type=file_type
+        )
+
+        return jsonify({"upload_url": url, "blob_name": blob_name})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 if __name__ == '__main__':
     # Cloud Run provides the PORT environment variable
     port = int(os.environ.get('PORT', 8080))

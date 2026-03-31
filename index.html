@@ -34,6 +34,49 @@
         font-size: 1.2rem;
       }
 
+      /* Floating Upload Button */
+      .upload-btn {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        background: #333;
+        color: white;
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        cursor: pointer;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        z-index: 1000;
+        transition: transform 0.2s;
+      }
+
+      .upload-btn:hover {
+        transform: scale(1.1);
+      }
+
+      #file-input {
+        display: none;
+      }
+
+      /* Upload Progress Overlay */
+      #upload-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.9);
+        z-index: 2000;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+
       /* The Photo Grid */
       .gallery {
         display: grid;
@@ -91,7 +134,7 @@
       /* Mobile Optimization */
       @media (max-width: 600px) {
         .gallery {
-          grid-template-columns: repeat(2, 1fr); /* 2 columns on phones */
+          grid-template-columns: repeat(2, 1fr);
           gap: 8px;
           padding: 8px;
         }
@@ -106,6 +149,14 @@
       <h1 id="event-title">Event Gallery</h1>
     </header>
 
+    <div id="upload-overlay">
+      <div class="loader"></div>
+      <p id="upload-status">Uploading your memory...</p>
+    </div>
+
+    <label for="file-input" class="upload-btn" id="upload-label">+</label>
+    <input type="file" id="file-input" accept="image/*" />
+
     <div id="status-container">
       <div id="loader" class="loader"></div>
       <p id="status-text">Opening your gallery...</p>
@@ -114,67 +165,97 @@
     <div class="gallery" id="photo-grid" style="display: none"></div>
 
     <script>
-      // 1. Extract the event ID from the URL (e.g. ?event=wedding2026)
+      // 1. Extract the event ID from the URL
       const urlParams = new URLSearchParams(window.location.search);
       const eventId = urlParams.get("event");
 
-      // 2. Define the endpoint (Relative to your Cloud Run URL)
-      const API_URL = `/gallery?event=${eventId}`;
+      const statusText = document.getElementById("status-text");
+      const loader = document.getElementById("loader");
+      const grid = document.getElementById("photo-grid");
+      const title = document.getElementById("event-title");
 
       async function initGallery() {
-        const statusText = document.getElementById("status-text");
-        const loader = document.getElementById("loader");
-        const grid = document.getElementById("photo-grid");
-        const title = document.getElementById("event-title");
-
         if (!eventId) {
           loader.style.display = "none";
           statusText.innerHTML =
-            "<strong>Access Denied:</strong> No Event ID found. Please scan the QR code again.";
+            "<strong>Access Denied:</strong> No Event ID found.";
           return;
         }
 
         try {
-          const response = await fetch(API_URL);
+          const response = await fetch(`/gallery?event=${eventId}`);
           const data = await response.json();
 
           if (response.ok && data.photos.length > 0) {
-            // Hide loading UI
             document.getElementById("status-container").style.display = "none";
+            grid.innerHTML = ""; // Clear for refresh
             grid.style.display = "grid";
-
-            // Update Title
             title.innerText = eventId.replace(/-/g, " ");
 
-            // 3. Inject photos into the grid
             data.photos.forEach((url) => {
               const card = document.createElement("div");
               card.className = "photo-card";
-
               const img = document.createElement("img");
               img.src = url;
-              img.loading = "lazy"; // Only loads as user scrolls
-
-              // Click to view full image
+              img.loading = "lazy";
               img.onclick = () => window.open(url, "_blank");
-
               card.appendChild(img);
               grid.appendChild(card);
             });
           } else {
             loader.style.display = "none";
             statusText.innerText =
-              data.error || "This gallery is currently empty.";
+              data.error || "This gallery is empty. Be the first to upload!";
           }
         } catch (err) {
           loader.style.display = "none";
-          statusText.innerText =
-            "Error connecting to server. Please try again.";
+          statusText.innerText = "Error connecting to server.";
           console.error("Gallery Error:", err);
         }
       }
 
-      // Run the script
+      // 2. Upload Logic
+      document
+        .getElementById("file-input")
+        .addEventListener("change", async (e) => {
+          const file = e.target.files[0];
+          if (!file || !eventId) return;
+
+          const overlay = document.getElementById("upload-overlay");
+          overlay.style.display = "flex";
+
+          try {
+            // Get Signed URL from Backend
+            const res = await fetch(
+              `/get-upload-url?event=${eventId}&filename=${encodeURIComponent(file.name)}&type=${file.type}`,
+            );
+            const data = await res.json();
+
+            if (!res.ok)
+              throw new Error(data.error || "Could not get upload URL");
+
+            // Upload directly to GCS
+            const upload = await fetch(data.upload_url, {
+              method: "PUT",
+              headers: { "Content-Type": file.type },
+              body: file,
+            });
+
+            if (upload.ok) {
+              alert("Upload successful!");
+              initGallery(); // Refresh images without full page reload
+            } else {
+              throw new Error("Upload to Storage failed");
+            }
+          } catch (err) {
+            alert("Error: " + err.message);
+            console.error(err);
+          } finally {
+            overlay.style.display = "none";
+            e.target.value = ""; // Reset input
+          }
+        });
+
       initGallery();
     </script>
   </body>
